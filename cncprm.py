@@ -10,6 +10,67 @@ class fncprm:
     re_L = re.compile('L[0-9]{1,2}[^L]*')
     re_PM = re.compile('[P|M]')
     ZEN2HAN = str.maketrans(''.join(chr(0xff01 + i) for i in range(94)), ''.join(chr(0x21 + i) for i in range(94)))
+
+    def __iter__(self):
+        """イテレータとしての振る舞いを定義します"""
+        return iter(sorted(self.odc_prm.items()))
+
+    def __len__(self):
+        """パラメータの総数を返します"""
+        return len(self.odc_prm)
+
+    def get_parameter_list(self):
+        """GUIでの表示用にパラメータリストを生成します"""
+        result = []
+        for prm_num, prm_data in sorted(self.odc_prm.items()):
+            param_info = {
+                "number": prm_data["head"]["PrmNumber"],
+                "type": prm_data["head"]["Type"],
+                "axes": []
+            }
+            
+            for axis in prm_data["body"]:
+                param_info["axes"].append({
+                    "index": axis["Index"],
+                    "value": axis["Value"]
+                })
+            
+            result.append(param_info)
+        return result
+
+    def get_axis_parameters(self, axis_index):
+        """特定の軸に関連するパラメータのみを取得します"""
+        result = []
+        axis_str = str(axis_index)
+        
+        for prm_num, prm_data in sorted(self.odc_prm.items()):
+            for axis in prm_data["body"]:
+                if axis["Index"].endswith(axis_str):
+                    result.append({
+                        "number": prm_data["head"]["PrmNumber"],
+                        "type": prm_data["head"]["Type"],
+                        "axis": axis["Index"],
+                        "value": axis["Value"]
+                    })
+                    break
+        return result
+
+    def get_formatted_display(self):
+        """GUIでの表示用に整形された文字列を返します"""
+        lines = []
+        for prm_num, prm_data in sorted(self.odc_prm.items()):
+            head = prm_data["head"]
+            line = f"{head['PrmNumber']} ({head['Type']}): "
+            
+            axis_values = []
+            for axis in prm_data["body"]:
+                axis_values.append(f"{axis['Index']}={axis['Value']}")
+            
+            line += ", ".join(axis_values)
+            lines.append(line)
+        
+        return "\n".join(lines)
+    
     def __init__(self, filepath =None):
         self.odc_prm = {}
         if filepath != None:
