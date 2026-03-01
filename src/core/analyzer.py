@@ -4,25 +4,31 @@ from pathlib import Path
 
 # 軸・値ペアを抽出する正規表現
 pattern_Nnum = re.compile(r"([N])(\d+)")
-pattern_QindexAxOrValue = re.compile(r"([Q])(\d+)([A|S|T|L|P|M|I]?\d+)")
+pattern_QindexAxOrValue = re.compile(r"([Q])(\d+)([A|S|T|L|P|M|I]\d+.+)")
 pattern_AxValue = re.compile(r"([A|S|T|L])(\d+)([P|M|I])([\d\.\-]+)")
 pattern_OnlyValue = re.compile(r"([P|M|I])([\d\.\-]+)")
-
+ZEN2HAN = str.maketrans(''.join(chr(0xff01 + i) for i in range(94)), ''.join(chr(0x21 + i) for i in range(94)))
 
 class cncprm():
-    def __init__(self, path: str|None|Path):
+    def __init__(self, path):
         if isinstance(path, str):
             path = Path(path)
         self.fullbody = {"data":[], "index":{}}
         if path is not None:
             self.PrmToJson(path)
         
-    def PrmToJson(self, path: str):
+    def __len__(self):
+        """パラメータの総数を返す"""
+        return len(self.fullbody["data"])
+
+    def PrmToJson(self, path):
         # 入力ファイルを読み込み
+        # 読み込まれた文字はは半角、大文字へ自動置換される。
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
             
         for line in lines:
+            line = str(line).upper().translate(ZEN2HAN)
             x = self.prmlineToJson(line)
             if x is None:
                 continue
@@ -33,7 +39,6 @@ class cncprm():
         prm_line = prm_line.strip()
 
         # N番号を抽出
-        print(prm_line)
         if not pattern_Nnum.search(prm_line):
             return None
         parts = pattern_Nnum.search(prm_line)
@@ -62,7 +67,6 @@ class cncprm():
             
     def extract_axis_values(self, data_part):
         axis_values = []
-        print(data_part)
         axis_letter, axis_index, value_letter, value= ('', 0, '', '')
         if pattern_AxValue.search(data_part):
             # 軸と値のペアを抽出
@@ -76,7 +80,6 @@ class cncprm():
                 value_type = f"VALUE_TYPE_{value_letter}"
         elif pattern_OnlyValue.search(data_part):
             matchValues = pattern_OnlyValue.findall(data_part)[0]
-            print(matchValues)
             value_letter, value = matchValues[0], matchValues[1]
             axis_values.append(
                 {"axis_letter": axis_letter, "axis_index": int(axis_index),
@@ -101,23 +104,42 @@ class cncprm():
 
         # 結果を格納
         return {
+            "types": {
                 "axis_type": axis_type,
                 "value_type": value_type,
-                "format": fmt,
-                "body": axis_values
-            }
+                "format": fmt
+            },
+            "body": axis_values
+        }
         
-    def output_Json(self, path: str = "parameter.josn"):
+    def output_parameterByJson(self, path = "parameter.josn"):
         # JSONファイルに保存
-        if not self.data:
+        if not self.fullbody["data"]:
             return None
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=4)
+            json.dump(
+                self.fullbody["data"], 
+                f, 
+                ensure_ascii=False, 
+                indent=4
+            )
 
-
-
+    def output_typeindexByJson(self, path = "typeindex.json"):
+        # 各N番号ごとのタイプだけを N番号をキーとした辞書へ出力する。
+        if not self.fullbody["data"]:
+            return None
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(
+                {d["N_number"]["N_index"]:d["types"] for d in self.fullbody["data"]}, 
+                f, 
+                ensure_ascii=False, 
+                indent=4
+            )
+        
 if __name__ == '__main__':
-    filepath = Path("data/CNC-PARA.TXT")
+    filepath = Path("src/data/CNC-PARA.TXT")
     print(filepath.resolve())
     p = cncprm(filepath)
+    p.output_parameterByJson("outputs/parameter.json")
+    p.output_typeindexByJson("outputs/typeindex.json")
     
