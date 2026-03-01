@@ -9,33 +9,54 @@ pattern_AxValue = re.compile(r"([A|S|T|L])(\d+)([P|M|I])([\d\.\-]+)")
 pattern_OnlyValue = re.compile(r"([P|M|I])([\d\.\-]+)")
 ZEN2HAN = str.maketrans(''.join(chr(0xff01 + i) for i in range(94)), ''.join(chr(0x21 + i) for i in range(94)))
 
-class cncprm():
-    def __init__(self, path):
+class CncprmParser():
+    def __init__(self, path=None):
         if isinstance(path, str):
             path = Path(path)
-        self.fullbody = {"data":[], "index":{}}
+        self.__initialize_model()
         if path is not None:
-            self.PrmToJson(path)
-        
+            self.load(path)
+
     def __len__(self):
         """パラメータの総数を返す"""
         return len(self.fullbody["data"])
+    
+    def __initialize_model(self):
+        self.fullbody = {"data":[], "index":{}}
 
-    def PrmToJson(self, path):
+    def loads(self, text, separater=r"\n"):
+        """cncprm形式の文字列からCncprmModelを返す"""
+        self.__initialize_model()
+
+        lines = separater.split(text)
+        for line in lines:
+            line = str(line).upper().translate(ZEN2HAN)
+            x = self.parse(line)
+            if x is None:
+                continue
+            self.fullbody["data"].append(x[0])
+            self.fullbody["index"].update(x[1])
+        return self.fullbody
+    
+        return b
+    def load(self, path):
+        """cncprm形式のテキスト形式のファイルパスからCncprmModelを返す"""
         # 入力ファイルを読み込み
         # 読み込まれた文字はは半角、大文字へ自動置換される。
+        self.__initialize_model()
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
             
         for line in lines:
             line = str(line).upper().translate(ZEN2HAN)
-            x = self.prmlineToJson(line)
+            x = self.parse(line)
             if x is None:
                 continue
             self.fullbody["data"].append(x[0])
             self.fullbody["index"].update(x[1])
+        return self.fullbody
 
-    def prmlineToJson(self, prm_line):
+    def parse(self, prm_line):
         prm_line = prm_line.strip()
 
         # N番号を抽出
@@ -54,7 +75,7 @@ class cncprm():
             for match in pattern_QindexAxOrValue.finditer(Ndata_part):
                 Q_letter, Q_index, Q_data_part = match.groups()
                 Q_number = {"Q_letter": Q_letter, "Q_index": int(Q_index)}
-                _d = self.extract_axis_values(Q_data_part)
+                _d = self.__extract_axis_values(Q_data_part)
                 if _d is not None:
                     _d.update(
                         {
@@ -65,7 +86,7 @@ class cncprm():
                     )
                     return _d, {_d["N_number"]["N_index"]: _d}
             
-    def extract_axis_values(self, data_part):
+    def __extract_axis_values(self, data_part):
         axis_values = []
         axis_letter, axis_index, value_letter, value= ('', 0, '', '')
         if pattern_AxValue.search(data_part):
@@ -112,7 +133,7 @@ class cncprm():
             "body": axis_values
         }
         
-    def output_parameterByJson(self, path = "parameter.josn"):
+    def export_parameterByJson(self, path = "parameter.josn"):
         # JSONファイルに保存
         if not self.fullbody["data"]:
             return None
@@ -124,7 +145,7 @@ class cncprm():
                 indent=4
             )
 
-    def output_typeindexByJson(self, path = "typeindex.json"):
+    def export_typeindexByJson(self, path = "typeindex.json"):
         # 各N番号ごとのタイプだけを N番号をキーとした辞書へ出力する。
         if not self.fullbody["data"]:
             return None
@@ -139,7 +160,7 @@ class cncprm():
 if __name__ == '__main__':
     filepath = Path("src/data/CNC-PARA.TXT")
     print(filepath.resolve())
-    p = cncprm(filepath)
-    p.output_parameterByJson("outputs/parameter.json")
-    p.output_typeindexByJson("outputs/typeindex.json")
+    p = CncprmParser(filepath)
+    p.export_parameterByJson("outputs/parameter.json")
+    p.export_typeindexByJson("outputs/typeindex.json")
     
