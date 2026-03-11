@@ -2,6 +2,15 @@ from enum import IntEnum
 from pathlib import Path
 import json
 
+
+class TypeBase():
+    def __init__(self):
+        self.TypeValue = ""
+    def __str__(self):
+        return self.TypeValue
+
+
+
 # 1. Enum definitions
 class AxisType(IntEnum):
     L = 100

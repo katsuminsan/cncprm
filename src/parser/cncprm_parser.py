@@ -1,6 +1,8 @@
 import re
 import json
 from pathlib import Path
+from ..model.parameter_set import ParameterSet
+from ..core.Types import AxisType, ValueType, FormatType
 
 # 軸・値ペアを抽出する正規表現
 pattern_Nnum = re.compile(r"([N])(\d+)")
@@ -88,7 +90,7 @@ class CncprmParser():
             
     def __extract_axis_values(self, data_part):
         axis_values = []
-        axis_letter, axis_index, value_letter, value= ('', 0, '', '')
+        axis_letter, axis_index, value_letter, value = ('', 0, '', '')
         if pattern_AxValue.search(data_part):
             # 軸と値のペアを抽出
             for match in pattern_AxValue.finditer(data_part):
@@ -97,8 +99,8 @@ class CncprmParser():
                     {"axis_letter": f"{axis_letter}", "axis_index": int(axis_index),
                     "value_letter": value_letter, "value": f"{value}"}
                 )
-                axis_type = f"AXIS_TYPE_{axis_letter}"
-                value_type = f"VALUE_TYPE_{value_letter}"
+                axis_type = getattr(AxisType, axis_letter, AxisType.NONE)
+                value_type = getattr(ValueType, value_letter, ValueType.P)
         elif pattern_OnlyValue.search(data_part):
             matchValues = pattern_OnlyValue.findall(data_part)[0]
             value_letter, value = matchValues[0], matchValues[1]
@@ -106,32 +108,30 @@ class CncprmParser():
                 {"axis_letter": axis_letter, "axis_index": int(axis_index),
                 "value_letter": value_letter,"value": f"{value}"}
             )
-            axis_type = f"AXIS_TYPE_NONE"
-            value_type = f"VALUE_TYPE_{value_letter}"
+            axis_type = AxisType.NONE
+            value_type = getattr(ValueType, value_letter, ValueType.P)
         else:
             raise ValueError(f"errValue: {data_part}")
 
         # 軸インデックス順にソート
-        axis_values.sort(key=lambda x: x["axis_index"] if x["axis_index"]!='' else 0)
+        axis_values.sort(key=lambda x: x["axis_index"] if x["axis_index"] != '' else 0)
 
         # format判定
         values_only = [v["value"] for v in axis_values]
         if all(len(v) == 8 and set(v) <= {"0", "1"} for v in values_only):
-            fmt = "Bit_8"
+            fmt = FormatType.BIT_8
         elif any("." in v for v in values_only):
-            fmt = "Decimal"
+            fmt = FormatType.DECIMAL
         else:
-            fmt = "Integer"
+            fmt = FormatType.INTEGER
 
-        # 結果を格納
-        return {
-            "types": {
-                "axis_type": axis_type,
-                "value_type": value_type,
-                "format": fmt
-            },
-            "body": axis_values
-        }
+        return ParameterSet(
+            no=axis_index,
+            axis_type=axis_type,
+            value_type=value_type,
+            fmt=fmt,
+            raw_line=data_part
+        )
         
     def export_parameterByJson(self, path = "parameter.josn"):
         # JSONファイルに保存
@@ -163,4 +163,3 @@ if __name__ == '__main__':
     p = CncprmParser(filepath)
     p.export_parameterByJson("outputs/parameter.json")
     p.export_typeindexByJson("outputs/typeindex.json")
-    

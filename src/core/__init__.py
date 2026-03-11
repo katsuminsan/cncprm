@@ -1,6 +1,6 @@
-from .parser import CncprmParser
-from .model import CncprmModel
-from .serializer import CncprmSerializer
+from ..parser.cncprm_parser import CncprmParser
+from ..model.model import CncprmModel
+from ..serializer.cncprm_serializer import CncprmSerializer
 
 __all__ = [
     "CncprmParser",
